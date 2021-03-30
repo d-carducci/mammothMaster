@@ -2,22 +2,44 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import binom
 
+## social heals:
+#  determines whether the menace healing rate is set to the 6 cp/action from social heals or to the 3 cp/action from many late-game single-player options
+## scrimshander_knife:
+#  determines whether to account for the possibility of removing Antiquity using the event-locked Scrimshander Carving Knife
+## use_HRelic_on_HellM:
+#  determines whether to fill unused limb slots on Mammoths from Hell using Unidentified Thigh Bones or Holy Relics of the Thigh of St Fiacre
+
 social_heals = 0
 scrimshander_knife = 1
 use_HRelic_on_HellM = 1
 
-RES = np.array(['Echoes', 'Scrip', 'TBScraps', 'MoDS', 'BFragments', 'Peppercaps', 'WAmber', 'CasingCP', 'Moonlit', 'Sw7Necks', 'GenSkeleton', 'WTentacles', 'MRibcage', 'HRelics'])
+## dictionary hell:
+#  RES is an array containing the name of every resource involved in the grind; the REFR dictionary is an hack to reference array entries using the in-game resouce name rather than the index number without having to deal with pandas dataframes
+#  do always keep actions/echoes/scrip in that order as the first three elements though, otherwise it makes some stuff much more cumbersome
+
+RES = np.array(['Actions', 'Echoes', 'Scrip', 'TBScraps', 'MoDS', 'BFragments', 'Peppercaps', 'WAmber', 'CasingCP', 'Moonlit', 'Sw7Necks', 'GenSkeleton', 'WTentacles', 'MRibcage', 'HRelics'])
 LENGTH = len(RES)
 REFR = {}
+
+for i in range(LENGTH):
+    REFR[RES[i]] = i
+
+## Balmoral stuff
+#  these are all average numbers of actions taken while in the Balmoral woods assuming particular strategies and aPoC scores (aPoC = array index); all numbers were calcuated simulating and averaging 1e7 rounds through the woods
+
+#  mam_avg = average number of actions spent wandering the woods when sourcing Mammoth Ribcages, assuming you only darken when it becomes necessary
+#  neck7_wander = average number of actions spent wandering the woods when sourcing Skeletons with 7 Necks, assuming you only darken when it becomes necessary
+#  neck7_dark = probability of needing to darken the woods when sourcing Skeletons with 7 Necks, assuming you only darken when it becomes necessary
 
 mam_avg = np.array([6, 5.538, 5.149, 4.831, 4.594, 4.461, 4.471, 4.694, 5.236, 6.261, 8])
 neck7_wander = np.array([5, 5.523, 6, 6.339, 6.499, 6.484, 6.327, 6.074, 5.769, 5.425, 5])
 neck7_dark = np.array([1, 0.974, 0.852, 0.647, 0.42, 0.227, 0.096, 0.029, 0.005, 0.0002, 0])
-eps = 63.5/125
+
+eps = 63.5/125 #scrip-to-epa conversione rate from hambitrage (Ham arbitrage)
 
 
-for i in range(LENGTH):
-    REFR[RES[i]] = i
+## check difficulties:
+#  ufuncs calculating the success chance of a check, with the same convention of difficulty = score at which you have a 60% chance of succeeding
 
 def broad(difficulty, score):
     if (difficulty == 0):
@@ -34,16 +56,24 @@ narrow = np.frompyfunc(narrow, 2, 1)
 
 checks = {'broad': broad, 'narrow': narrow}
 
+## the recipe class
+#  each instance represents a different possible step in the grind; the main feature is the self.resources array, containing the item changes involved in it. 
+#  in_resources is a dictionary where each entry is of the form {'resource name': change} and only the desired non-zero entries needing to be specified (thanks to self.resources being initialized with np.zeros rather than np.empty
+
+# index 0 ('Actions') is the only one where an expense is recorded as a positive number rather than a negative number, since there's no way to gain actions during regular play
+
+# the self.(*)_penalty functions come in handy when calculating the resources array of steps where a player's stats influence the outcome
+
 class recipe:
     
-    def __init__(self, name, in_resources, action=0):
+    def __init__(self, name, in_resources):
         
         self.name = name
         self.resources = np.zeros(LENGTH)
         for KEYS in in_resources:
             self.resources[REFR[KEYS]] = in_resources[KEYS]
             
-        self.action_cost = action
+
         
         self.action_penalty = np.frompyfunc(self.action_penalty, 3, 1)
         self.menace_penalty = np.frompyfunc(self.menace_penalty, 4, 1)
@@ -55,19 +85,17 @@ class recipe:
         
         p = checks[mode](difficulty, stat)
         
-        self.action_cost += 1/p - 1
+        self.resources[0] += 1/p - 1
         return 1/p - 1
         
-    #♦self.action_penalty = np.frompyfunc(recipe().action_penalty, 3, 1)
         
     def menace_penalty(self, difficulty, stat, menace, mode='broad'):
         #raises action_cost due to failing checks and needing to heal menaces from said check
         fail = self.action_penalty(difficulty, stat, mode)
         heal = fail*menace/3/(1 + social_heals)
-        self.action_cost += heal
+        self.resources[0] += heal
         return heal
         
-    #self.menace_penalty = np.frompyfunc(recipe().action_penalty, 4, 1)
         
     def sell_penalty(self, multiplier, stat, menace, implausibility, probability):
         
@@ -76,17 +104,23 @@ class recipe:
         
         p = broad(multiplier*implausibility, stat)
         penalty = probability*(1 - p)*(1 + menace/3/(1 + social_heals))
-        self.action_cost += penalty
+        self.resources[0] += penalty
         
         return penalty
         
     
-            
+## The Recipe List
+
+#  here we define every step of the grind, using functions that return specific instances of the recipe class
+#  *stats*: the stats input is a dictionary containing all the player stats as entries of the form {'statname': score)
+#  *strat*: the Balmoral woods step have an additional input, a string which specifies what strategy to follow with regards to Darken the woods; this is only relevant for aPoC < 9 and hasn't been properly implemented yet
+
+#  as a convention resources the number of which doesn't depend on player stats (partially or entirely) are specified at inizialition, while variable resources are calculated following initialization
         
     
 def GetMammoth(stats, strat='patient'):
     
-    instance = recipe('Get Ribcage', {'MRibcage': 1, 'HRelics': 2, 'Echoes' : -0.16, 'MoDS' : -40}, 6.96)
+    instance = recipe('Get Ribcage', {'Actions': 6.96, 'MRibcage': 1, 'HRelics': 2, 'Echoes' : -0.16, 'MoDS' : -40})
     apoc = min(10, stats['aPoC'])
     wander_succ = narrow(6, apoc)
     
@@ -95,20 +129,20 @@ def GetMammoth(stats, strat='patient'):
         
         instance.resources[REFR['TBScraps']] = -5
         instance.resources[REFR['Moonlit']] = 1 + 6/(1+wander_succ)
-        instance.action_cost += 1 + 6/(1+wander_succ)
+        instance.resources[0] += 1 + 6/(1+wander_succ)
         
     else:
         
         instance.resources[REFR['TBScraps']] = -5*(1 - wander_succ**8)
         instance.resources[REFR['Moonlit']] = mam_avg[apoc] + 1-wander_succ**8
-        instance.action_cost += mam_avg[apoc] + 1-wander_succ**8
+        instance.resources[0] += mam_avg[apoc] + 1-wander_succ**8
         
     return instance
         
         
 def Get7Necks(stats, strat='patient'):
     
-    instance = recipe('Get Ribcage', {'Sw7Necks': 1, 'Echoes' : -0.16, 'MoDS' : -40}, 7.96)
+    instance = recipe('Get Ribcage', {'Actions': 7.96, 'Sw7Necks': 1, 'Echoes' : -0.16, 'MoDS' : -40})
     apoc = min(10, stats['aPoC'])
     #wander_succ = narrow(6, apoc)
     
@@ -117,20 +151,20 @@ def Get7Necks(stats, strat='patient'):
         
         instance.resources[REFR['TBScraps']] = -5
         instance.resources[REFR['Moonlit']] = 1
-        instance.action_cost += 1 
+        instance.resources[0] += 1 
         
     else:
         
         instance.resources[REFR['TBScraps']] = -5*neck7_dark[apoc]
         instance.resources[REFR['Moonlit']] = neck7_wander[apoc] + neck7_dark[apoc]
-        instance.action_cost += neck7_wander[apoc] + neck7_dark[apoc]
+        instance.resources[0] += neck7_wander[apoc] + neck7_dark[apoc]
         
     return instance
 
 
 def HolyMammoth(stats):
     
-    instance = recipe('Holy Mammoth', {'HRelics': -4, 'MRibcage': -1, 'BFragments': -500, 'Peppercaps': -10, 'Echoes' : 192.5}, 10)
+    instance = recipe('Holy Mammoth', {'Actions': 10, 'HRelics': -4, 'MRibcage': -1, 'BFragments': -500, 'Peppercaps': -10, 'Echoes' : 192.5})
     legs_succ = narrow(5, stats['Mith'])
     legs_fail = 1 - legs_succ
     carve_succ = narrow(6, stats['Mith'])
@@ -150,7 +184,7 @@ def HolyMammoth(stats):
 
 def UngodlyMammoth(stats):
     
-    instance = recipe('Ungodly Mammoth', {'HRelics': -3, 'MRibcage': -1, 'BFragments': -500, 'Peppercaps': -10, 'WTentacles': -2, 'Echoes': 172.5}, 9)
+    instance = recipe('Ungodly Mammoth', {'Actions': 9, 'HRelics': -3, 'MRibcage': -1, 'BFragments': -500, 'Peppercaps': -10, 'WTentacles': -2, 'Echoes': 172.5}, 9)
     
     legs_succ = narrow(5, stats['Mith'])
     legs_fail = 1 - legs_succ
@@ -182,7 +216,7 @@ def UngodlyMammoth(stats):
     
 def HellMammoth(stats):
     
-    instance = recipe('Mammoth from Hell', {'MRibcage': -1, 'BFragments': -1000, 'WAmber': -5, 'Scrip': 125 + 25 + 5*4}, 9)
+    instance = recipe('Mammoth from Hell', {'Actions': 9, 'MRibcage': -1, 'BFragments': -1000, 'WAmber': -5, 'Scrip': 125 + 25 + 5*4})
     
     limb_succ = narrow(11, stats['MAnatomy'])
     limb_fail = 1 - limb_succ
@@ -259,8 +293,8 @@ def HellMammoth(stats):
     
 def GeneratorSkeleton(stats):
     
-    instance = recipe('Generator Skeleton', {'Sw7Necks': -1, 'GenSkeleton': 1, 'Scrip': -940}, 19)
-    instance.resources[REFR['Scrip']] += 5*(1 - broad(200, stats['Persuasive']))
+    instance = recipe('Generator Skeleton', {'Actions': 19, 'Sw7Necks': -1, 'GenSkeleton': 1, 'Scrip': -975})
+    instance.resources[REFR['Scrip']] += 5*broad(200, stats['Persuasive'])
     return instance
     
 def SellEntrepreneur(stats):
@@ -312,13 +346,13 @@ def SellNaive(stats):
     
 def BasicHelicon(stats):
     
-    instance = recipe('Basic Helicon Round', {'Peppercaps': 25, 'Echoes': 0.5, 'Scrip': 3, 'CasingCP': 15}, 6)
+    instance = recipe('Basic Helicon Round', {'Actions': 6, 'Peppercaps': 25, 'Echoes': 0.5, 'Scrip': 3, 'CasingCP': 15})
     
     return instance
     
 def TentacleHelicon1(stats):
     
-    instance = recipe('Tentacle Helicon Round 1', {'Peppercaps': 25, 'Echoes': 0.5, 'Scrip': 2}, 6)
+    instance = recipe('Tentacle Helicon Round 1', {'Actions': 6, 'Peppercaps': 25, 'Echoes': 0.5, 'Scrip': 2})
     
     draw_succ = narrow(4, stats['SArts'])
     instance.resources[REFR['Scrip']] += 3*draw_succ
@@ -329,13 +363,13 @@ def TentacleHelicon1(stats):
     
 def MediumLarceny(stats):
     
-    instance = recipe('Medium Claywayman Larceny', {'Echoes': 27.5, 'CasingCP': -36}, 1)
+    instance = recipe('Medium Claywayman Larceny', {'Actions': 1, 'Echoes': 27.5, 'CasingCP': -36})
     
     return instance
     
 def Painting(stats):
     
-    instance = recipe('Painting at Balmoral', {'Moonlit': -12, 'Echoes': 85}, 11)
+    instance = recipe('Painting at Balmoral', {'Actions': 11, 'Moonlit': -12, 'Echoes': 85})
     
     paint_succ = narrow(200, stats['Persuasive'])
     paint_fail = 1 - paint_succ
@@ -347,8 +381,14 @@ def Painting(stats):
     instance.resources[REFR['Echoes']] += 20*binomial.sum()
     
     return instance
-    
+
+# ALL_STEPS: dictionary containing all the recipe funcionts, indexed by their name (yeah it doesn't always math with the one in the recipe initialization)
+
 ALL_STEPS = {'Get Mammoth': GetMammoth, 'Get 7Necks': Get7Necks, 'Holy Mammoth': HolyMammoth, 'Ungodly Mammoth': UngodlyMammoth, 'Mammoth from Hell': HellMammoth, 'Generator Skeleton': GeneratorSkeleton, 'Sell to Entrepreneur': SellEntrepreneur, 'Sell to Palaeontologist': SellPalaeontologist, 'Sell to Zailor': SellZailor, 'Sell to Naive': SellNaive, 'Basic Helicon Round': BasicHelicon, 'Tentacle Helicon Round 1': TentacleHelicon1, 'Medium Larceny': MediumLarceny, 'Painting': Painting}
+    
+    
+## the grind class:
+#  the math meat of the library, each instance takes as input a stat array and a steps array containing the string name for every step in the hypothetical grind you wish to analyze; for each step it creates an instance, shoves its self.resources array in its 2d matrix and transposes it at the end, so that each *row* corresponds to one resource and each *column* corresponds to one step; then numpy.linal.svd() does its math and solves the grind for us
     
 class grind:
     
@@ -357,32 +397,34 @@ class grind:
         self.number = len(steps)
         
 
-        temp_matrix = np.empty([self.number, LENGTH + 1])
+        temp_matrix = np.empty([self.number, LENGTH])
         self.stats = stats
         
         for i in range(self.number):
             
             temp = ALL_STEPS[steps[i]](stats)
-            temp_matrix[i, 1:] = temp.resources
-            temp_matrix[i, 0] = temp.action_cost
+            temp_matrix[i] = temp.resources
             
         self.matrix = temp_matrix.transpose()
-        l,v,r = np.linalg.svd(self.matrix[3:, :])
-        self.values = v
-        self.dim_grind = self.number - len(self.values)
-        self.vectors = r
-        self.sols = r[-self.dim_grind:]
+        l,v,r = np.linalg.svd(self.matrix[3:])
+        self.dim_grind = self.number - len(v)
+        # the following commented lines are for a future feature to deal with grinds that allow for more than one solution
+        # self.values = v
+        
+        # self.vectors = r
+        # self.sols = r[-self.dim_grind:]
         self.sol = r[-1]
         actions = np.dot(self.sol, self.matrix[0])
         echoes = np.dot(self.sol, self.matrix[1])
         scrip = np.dot(self.sol, self.matrix[2])
         self.epa = (echoes + eps*scrip)/actions
+        
+        #check that the solution found is a valid one: all entries need to either be zero (which is signalled, as it means that one step is superfluous) or of the same sign, as otherwise the grind would require some steps to be *undone*, which is obviously impossible.
+        
         signs = np.sign(self.sol)
         check1 = np.abs(signs.sum())
         check2 = np.abs(signs).sum()
-        # check = np.sign(self.sols)
-        # sums = check.sum(1)
-        # print(self.sols)
+
         if (check1 != self.number):
             
             if( check2 < self.number):
