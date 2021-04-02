@@ -6,7 +6,7 @@ It's a python script to analyse the efficiency of different grinds in the Fallen
 
 ##### How does it work?
 It takes your stats and the steps you intend to take, uses them to represent the grind as a matrix and lets numpy do some math to figure out whether it's viable or not and how efficient it is. 
-
+It's rather unpolished and amateurish (because I'm an unpolished amateur programmer) but you should be able to implement new grinds and steps by defining new functions to initialize instances of the "recipe" custom class.
 ##### What do I need to run it?
 Just the latest versions of python3, numpy, scipy, and matplotlib.
 
