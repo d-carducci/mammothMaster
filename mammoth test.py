@@ -2,13 +2,13 @@ import mammothMaster as mm
 import numpy as np
 import matplotlib.pyplot as plt
 
-scores = {'Persuasive': 300, 'Watchful': 300, 'Shadowy': 300, 'Dangerous': 300, 'Mith' : 10, 'SArts' : 10, 'AotRS' : 10, 'aPoC' : 10, 'MAnatomy': 10}
+#scores = {'Persuasive': 300, 'Watchful': 300, 'Shadowy': 300, 'Dangerous': 300, 'Mith' : 10, 'SArts' : 10, 'AotRS' : 10, 'aPoC' : 10, 'MAnatomy': 10}
 
-#scores = {'Persuasive': 269, 'Watchful': 277, 'Shadowy': 265, 'Dangerous': 265, 'Mith' : 7, 'SArts' : 7, 'AotRS' : 7, 'aPoC' : 7, 'MAnatomy': 10}
+scores = {'Persuasive': 269, 'Watchful': 277, 'Shadowy': 265, 'Dangerous': 265, 'Mith' : 7, 'SArts' : 7, 'AotRS' : 7, 'aPoC' : 7, 'MAnatomy': 10}
 
-step = np.array(['Get Mammoth', 'Get 7Necks', 'Holy Mammoth', 'Mammoth from Hell', 'Generator Skeleton', 'Sell to Entrepreneur', 'Sell to Palaeontologist', 'Sell to Zailor', 'Sell to Naive', 'Basic Helicon Round', 'Tentacle Helicon Round 1', 'Medium Larceny', 'Painting', 'Duplicate Ox Skull'])
+#step = np.array(['Get Mammoth', 'Get 7Necks', 'Ungodly Mammoth', 'Mammoth from Hell', 'Generator Skeleton', 'Sell to Entrepreneur', 'Sell to Palaeontologist', 'Sell to Zailor', 'Sell to Naive', 'Basic Helicon Round', 'Tentacle Helicon Round 1', 'Medium Larceny', 'Painting', 'Duplicate Ox Skull'])
 
-#step = np.array(['Get Mammoth', 'Get 7Necks', 'Holy Mammoth', 'Mammoth from Hell', 'Generator Skeleton', 'Sell to Entrepreneur', 'Sell to Palaeontologist', 'Sell to Zailor', 'Sell to Naive', 'Basic Helicon Round', 'Tentacle Helicon Round 1', 'Medium Larceny', 'Painting', 'Dig at SVIII', 'Discover HSkull', 'Bone Newspaper'])
+step = np.array(['Get Mammoth', 'Get 7Necks', 'Holy Mammoth', 'Mammoth from Hell', 'Generator Skeleton', 'Sell to Entrepreneur', 'Sell to Palaeontologist', 'Sell to Zailor', 'Sell to Naive', 'Basic Helicon Round', 'Tentacle Helicon Round 1', 'Medium Larceny', 'Painting', 'Dig at SVIII', 'Discover HSkull', 'Bone Newspaper', 'Tentacle Overflow'])
 
 
 

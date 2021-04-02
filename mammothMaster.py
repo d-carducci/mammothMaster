@@ -674,9 +674,9 @@ class grind:
             #scrip = np.dot(self.sol, self.matrix[2])
             self.epa = echoes/actions
             
-        #if dim.grind == 0 that means that there is no way to chain all or some of these steps into a self-sufficient cycle
+        #if grind_dim == 0 that means that there is no way to chain all or some of these steps into a self-sufficient cycle
         
-        elif (self.dim_grind == 0):
+        elif (self.grind_dim == 0):
             
             print('warning: grind not practicable (no solutions)')
             
@@ -696,7 +696,7 @@ class grind:
             if result.success:
                 
                 print('optimization successful')
-                print(result.maxcv)
+                #print(result.maxcv)
                 self.solution = np.matmul(self.basis, result.x)
                 self.epa = 1/self.calc_invepa(result.x)
                 
