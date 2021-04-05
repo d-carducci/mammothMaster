@@ -1,7 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.stats import binom
-from scipy.optimize import minimize, LinearConstraint
 
 ## social heals:
 #  determines whether the menace healing rate is set to the 6 cp/action from social heals or to the 3 cp/action from many late-game single-player options
@@ -19,9 +17,11 @@ debonair_palaeontologist = 1
 #  RES is an array containing the name of every resource involved in the grind; the REFR dictionary is an hack to reference array entries using the in-game resouce name rather than the index number without having to deal with panda dataframes
 #  do always keep actions/echoes/scrip in that order as the first three elements though, otherwise it makes some stuff much more cumbersome
 
-RES = np.array(['Actions', 'Echoes', 'Scrip', 'TBScraps', 'MoDS', 'BFragments', 'Peppercaps', 'WAmber', 'CasingCP', 'Moonlit', 'Sw7Necks', 'GenSkeleton', 'WTentacles', 'MRibcage', 'HRelics', 'BSurveys', 'PDiscovery', 'JBStinger', 'PTBones', 'HSkull', 'JThigh'])
+RES = np.array(['Actions', 'Echoes', 'Scrip', 'TBScraps', 'MoDS', 'BFragments', 'Peppercaps', 'WAmber', 'CasingCP', 'Moonlit', 'Sw7Necks', 'GenSkeleton', 'WTentacles', 'MRibcage', 'HRelics', 'BSurveys', 'PDiscovery', 'JBStinger', 'PTBones', 'HSkull', 'JThigh', 'IBiscuits', 'PSkull'])
 LENGTH = len(RES)
 REFR = {}
+EPS = 63.5/125 #scrip-to-epa conversione rate from hambitrage (Ham arbitrage)
+
 
 for i in range(LENGTH):
     REFR[RES[i]] = i
@@ -37,7 +37,6 @@ mam_avg = np.array([6, 5.538, 5.149, 4.831, 4.594, 4.461, 4.471, 4.694, 5.236, 6
 neck7_wander = np.array([5, 5.523, 6, 6.339, 6.499, 6.484, 6.327, 6.074, 5.769, 5.425, 5])
 neck7_dark = np.array([1, 0.974, 0.852, 0.647, 0.42, 0.227, 0.096, 0.029, 0.005, 0.0002, 0])
 
-eps = 63.5/125 #scrip-to-epa conversione rate from hambitrage (Ham arbitrage)
 
 
 ## check difficulties:
@@ -67,6 +66,8 @@ checks = {'broad': broad, 'narrow': narrow}
 
 # the self.(*)_penalty functions come in handy when calculating the resources array of steps where a player's stats influence the outcome
 
+# the self.(*)_resource allows quick access to the self.resources array through the resource name rather than its index in RES
+
 class recipe:
     
     def __init__(self, name, in_resources):
@@ -81,8 +82,23 @@ class recipe:
         self.action_penalty = np.frompyfunc(self.action_penalty, 3, 1)
         self.menace_penalty = np.frompyfunc(self.menace_penalty, 4, 1)
         self.sell_penalty = np.frompyfunc(self.sell_penalty, 5, 1)
+        self.get_resource = np.frompyfunc(self.get_resource, 1, 1)
+        self.add_resource = np.frompyfunc(self.add_resource, 2, 0)
+        self.remove_resource = np.frompyfunc(self.remove_resource, 2, 0)
         
+    
+    def get_resource(self, key):
         
+        return self.resources[REFR[key]]
+        
+    def add_resource(self, key, amnt):
+        
+        self.resources[REFR[key]] += amnt
+        
+    def remove_resource(self, key, amnt):
+        
+        self.resources[REFR[key]] -= amnt
+    
     def action_penalty(self, difficulty, stat, mode='broad'):
         #raises action_cost due to failing checks
         
@@ -106,12 +122,14 @@ class recipe:
         #takes two arrays, one with the possible implausibility values and the other with the chance of those values occuring
         
         p = broad(multiplier*implausibility, stat)
-        penalty = probability*(1 - p)*(1 + menace/3/(1 + social_heals))
+        penalty = probability*(1/p - 1)*(1 + menace/3/(1 + social_heals))
         self.resources[0] += penalty
         
         return penalty
         
-    
+
+
+
 ## The Recipe List
 
 #  here we define every step of the grind, using functions that return specific instances of the recipe class
@@ -121,45 +139,54 @@ class recipe:
 #  as a convention resources the number of which doesn't depend on player stats (partially or entirely) are specified at inizialition, while variable resources are calculated following initialization
         
     
-def GetMammoth(stats, strat='patient'):
+def GetMammoth(stats, strat='best'):
     
     instance = recipe('Get Ribcage', {'Actions': 6.96, 'MRibcage': 1, 'HRelics': 2, 'Echoes' : -0.16, 'MoDS' : -40})
     apoc = min(10, stats['aPoC'])
     wander_succ = narrow(6, apoc)
     
-    if (strat == 'hasty'):
+    if strat == 'best':
+        
+        strat = 'hasty' if apoc < 9 else 'patient'
+            
+    
+    if strat == 'hasty':
         
         
-        instance.resources[REFR['TBScraps']] = -5
-        instance.resources[REFR['Moonlit']] = 1 + 6/(1+wander_succ)
+        instance.remove_resource('TBScraps', 5)
+        instance.add_resource('Moonlit', 1 + 6/(1+wander_succ))
         instance.resources[0] += 1 + 6/(1+wander_succ)
         
     else:
         
-        instance.resources[REFR['TBScraps']] = -5*(1 - wander_succ**8)
-        instance.resources[REFR['Moonlit']] = mam_avg[apoc] + 1-wander_succ**8
+        instance.remove_resource('TBScraps', 5*(1 - wander_succ**8))
+        instance.add_resource('Moonlit', mam_avg[apoc] + 1-wander_succ**8)
         instance.resources[0] += mam_avg[apoc] + 1-wander_succ**8
         
     return instance
         
         
-def Get7Necks(stats, strat='patient'):
+def Get7Necks(stats, strat='best'):
     
     instance = recipe('Get Ribcage', {'Actions': 7.96, 'Sw7Necks': 1, 'Echoes' : -0.16, 'MoDS' : -40})
     apoc = min(10, stats['aPoC'])
     #wander_succ = narrow(6, apoc)
     
+    if strat == 'best':
+        
+        strat = 'hasty' if apoc < 3 else 'patient'
+    
     if (strat == 'hasty'):
         
         
-        instance.resources[REFR['TBScraps']] = -5
-        instance.resources[REFR['Moonlit']] = 1
+        instance.resources[REFR['TBScraps']] -= 5
+        instance.resources[REFR['Moonlit']] += 1
         instance.resources[0] += 1 
         
     else:
         
-        instance.resources[REFR['TBScraps']] = -5*neck7_dark[apoc]
-        instance.resources[REFR['Moonlit']] = neck7_wander[apoc] + neck7_dark[apoc]
+        instance.resources[REFR['TBScraps']] -= 5*neck7_dark[apoc]
+        instance.resources[REFR['Moonlit']] += neck7_wander[apoc] + neck7_dark[apoc]
         instance.resources[0] += neck7_wander[apoc] + neck7_dark[apoc]
         
     return instance
@@ -189,12 +216,12 @@ def PDBFragments(stats):
     instance = recipe('Get Bone Fragments', {'BFragments': 1250, 'PDiscovery': -1})
     return instance
     
-def BoneNewspaper(stats, PLrate=0):
+def BoneNewspaper(stats, PLrate=0, debonair_palaeontologist=False):
     instance = recipe('Exposé on Palaeontology', {'Actions': 22.5, 'BSurveys': 72, 'HRelics': 2, 'WTentacles': 4.5, 'JBStinger': 1.5, 'PTBones':1, 'Scrip': 2, 'Echoes': 5})
     
-    instance.resources[REFR['Actions']] += debonair_palaeontologist + PLrate
-    instance.resources[REFR['BSurveys']] += 13*(debonair_palaeontologist + PLrate)
-    instance.resources[REFR['Echoes']] += 2*debonair_palaeontologist
+    instance.resources[0] += debonair_palaeontologist + PLrate
+    instance.add_resource('BSurveys', 13*(debonair_palaeontologist + PLrate))
+    instance.add_resource('Echoes', 2*debonair_palaeontologist)
     
     return instance
 
@@ -202,6 +229,54 @@ def DuplicateHSkull(stats):
     
     instance = recipe('Duplicate Ox Skull', {'Actions':1, 'BFragments': -1000, 'WAmber': -5, 'HSkull': 1})
     return instance
+    
+    
+def DuplicatePSkull(stats):
+    
+    instance = recipe('Duplicate Seal Skull', {'Actions':1, 'BFragments': -1750, 'WAmber': -25, 'IBiscuits': -1, 'PSkull': 1})
+    return instance
+    
+def ZeeMammoth(stats):
+    
+    instance = recipe('Mammoth of the Zee', {'Actions': 9, 'MRibcage': -1, 'PSkull': -1, 'Scrip': 125 + 50 + 5*4})
+    
+    skull_succ = narrow(4, stats['MAnatomy'])
+    skull_fail = 1 - skull_succ
+    
+    tail_succ = narrow(5, stats['MAnatomy'])
+    tail_fail = 1 - tail_succ
+    
+    chimera_succ = narrow(11, stats['Mith'])
+    chimera_impl = np.array([3, 6])
+    chimera_prob = np.array([chimera_succ, 1 - chimera_succ])
+    
+    limb_succ = narrow(11, stats['MAnatomy'])
+    limb_fail = 1 - limb_succ
+    
+    #if skull attachment succeeds, attach all legs and if all succeed also add tentacle
+    
+    needtail_chance = skull_succ*limb_succ**4
+    antiq = np.array([6, 7, 8, 9])
+    chance = skull_succ*binom.pmf(antiq-6, 4, limb_succ)
+    chance[-1] += needtail_chance
+    instance.add_resource('Scrip', 10*np.dot(antiq, chance) + 5*needtail_chance)
+    
+    #if skull attachment fails attach all legs (1 Menace 6-10 Antiquity)
+    
+    antiq = np.array([6, 7, 8, 9, 10])
+    chance = skull_fail*binom.pmf(antiq-6, 4, limb_succ)
+    instance.add_resource('Scrip', 5*np.dot(antiq, chance))
+    
+    #account for failed sales
+    
+    impla = np.array([3, 6, 5, 8])
+    proba = np.empty(4)
+    proba[:2] = chimera_prob*needtail_chance*tail_succ
+    proba[2:] = chimera_prob*needtail_chance*tail_fail
+    instance.sell_penalty(75, stats['Shadowy'], 5, impla, proba)
+    
+    return instance
+    
 
 def EasyMammoth(stats):
     
@@ -560,25 +635,29 @@ def Painting(stats):
     instance.resources[REFR['Echoes']] += 20*binomial.sum()
     
     return instance
-
-def TentacleOverflow(stats):
-    
-    instance = recipe('Withered Tentacles Overflow', {'WTentacles': -1})
-    return instance
-    
-def StingerOverflow(stats):
-    
-    instance = recipe('Jet-Black Stinger Overflow', {'JBStinger': -1})
-    return instance
     
 def SellHRelicBF(stats):
     
-    instance = recipe('Sell HRelic for BF', {'Actions': 1, 'HRelics': -1, 'BFragments': 1250})
+    instance = recipe('Sell HRelic for BFragments', {'Actions': 1, 'HRelics': -1, 'BFragments': 1250})
     return instance
+    
+def SellHRelicIB(stats):
+    
+    instance = recipe('Sell HRelic for IBiscuits', {'Actions': 1, 'HRelics': -1, 'IBiscuits': 6})
+    return instance
+
+def Overflow(resource):
+    
+    instance = recipe(resource + ' Overflow', {resource: -1})
+    return instance
+    
+
+    
+
 
 # ALL_STEPS: dictionary containing all the recipe funcionts, indexed by their name (yeah it doesn't always math with the one in the recipe initialization)
 
-ALL_STEPS = {'Get Mammoth': GetMammoth, 'Get 7Necks': Get7Necks, 'Holy Mammoth': HolyMammoth, 'Ungodly Mammoth': UngodlyMammoth, 'Mammoth from Hell': HellMammoth, 'Generator Skeleton': GeneratorSkeleton, 'Sell to Entrepreneur': SellEntrepreneur, 'Sell to Palaeontologist': SellPalaeontologist, 'Sell to Zailor': SellZailor, 'Sell to Naive': SellNaive, 'Basic Helicon Round': BasicHelicon, 'Tentacle Helicon Round 1': TentacleHelicon1, 'Medium Larceny': MediumLarceny, 'Painting': Painting, 'Duplicate Ox Skull': DuplicateHSkull, 'Tentacle Overflow': TentacleOverflow, 'Stinger Overflow': StingerOverflow}
+ALL_STEPS = {'Get Mammoth': GetMammoth, 'Get 7Necks': Get7Necks, 'Holy Mammoth': HolyMammoth, 'Ungodly Mammoth': UngodlyMammoth, 'Mammoth from Hell': HellMammoth, 'Generator Skeleton': GeneratorSkeleton, 'Sell to Entrepreneur': SellEntrepreneur, 'Sell to Palaeontologist': SellPalaeontologist, 'Sell to Zailor': SellZailor, 'Sell to Naive': SellNaive, 'Basic Helicon Round': BasicHelicon, 'Tentacle Helicon Round 1': TentacleHelicon1, 'Medium Larceny': MediumLarceny, 'Painting': Painting, 'Duplicate Ox Skull': DuplicateHSkull, 'Duplicate Seal Skull': DuplicatePSkull}
 
 ALL_STEPS['Dig at SVIII'] = SVIIIdig
 ALL_STEPS['Discover Mammoth'] = PDMRibcage
@@ -588,150 +667,15 @@ ALL_STEPS['Bone Newspaper'] = BoneNewspaper
 ALL_STEPS['Easy Mammoth'] = EasyMammoth
 ALL_STEPS['Discover BFragments'] = PDBFragments
 ALL_STEPS['Sell HRelic for BFragments'] = SellHRelicBF
+ALL_STEPS['Sell HRelic for IBiscuits'] = SellHRelicIB
+ALL_STEPS['Mammoth of the Zee'] = ZeeMammoth
+
     
     
 ## the grind class:
 #  the math meat of the library, each instance takes as input a stat array and a steps array containing the string name for every step in the hypothetical grind you wish to analyze; for each step it creates an instance, shoves its self.resources array in its 2d matrix and transposes it at the end, so that each *row* corresponds to one resource and each *column* corresponds to one step; then numpy.linal.svd() does its math and solves the grind for us
     
-class grind:
-    
-    #stats: dictionary containing all the player stats as entries of the form {'statname': score}
-    #steps: list of the steps involved in the cycle, each stored as the string corresponding to the function in the ALL_STEPS dictionary
-    #blacklist: list of resources that should always be ignored when evaluating the cycle, even *despite* being involved in a step (example: 'JBStinger' in a grind that includes Palaeontological newspaper editions but makes no use of Jet-Black Stingers) 
-    
-    def __init__(self, stats, steps, blacklist=0):
-        
-        self.dim1 = len(steps)
-        
-        self.ref = {} #dictionary reference of the resources involved in the cycle
-        self.steps = steps #internal list of steps to take
-        temp_matrix = np.empty([self.dim1, LENGTH]) #temporary matrix in which to store the resource arrays
-        self.stats = stats
-        inv_mask = np.zeros(LENGTH) #blank boolean mask with which to index the relevant resources from RES
-        
-        self.step_ref = {} #internal dictionary reference of the steps involved in the cycle
-        
-        if blacklist != 0: #adds the item blacklist to inv_mask so that they may be ignored
-            for item in blacklist:
-                inv_mask[REFR[item]] = 1
-                
-        
-        #collates the resource matrix
-        for i in range(self.dim1):
-            
-            temp = ALL_STEPS[steps[i]](stats)
-            #some recipe initialization functions may return 0 rather than an instance, such as when trying to add Holy Mammoths to the cycle with scrimshander_knife == 0; the if-else branch removes the step entirely when that happens
-            
-            if temp:        
-                temp_matrix[i] = temp.resources
-            
-            else:
-                self.steps.remove(steps[i])
-                self.dim1 -= 1
-                temp_matrix = np.delete(temp_matrix, -1, 1)
-        
-        
-        a = temp_matrix.transpose()         #puts it in the correct shape (resources-rows, steps-columns)
-        inv_mask = np.logical_or(inv_mask, (a==0).all(1))#adds unused items to list of resources to ignore
-        self.matrix = a[~inv_mask]          #removes all unused resources
-        self.reses = RES[~inv_mask]         #creates view of the RES array involving only relevant resources
-        self.dim0 = len(self.reses)
-        
-        #create an internal reference for only the relevant resources
-        for i in range(self.dim0):          
-            self.ref[self.reses[i]] = i
-          
-        #create an internal reference for only the relevant steps 
-        for i in range(len(self.steps)):
-            
-            self.step_ref[self.steps[i]] = i
-              
-        
-        #find the epa and solution vector
-        self.solve()
-        
-        
-    def solve(self):
-        
-        #singular value decomposition: decomposes the resource matrix as l*V*r^-1; v is a list of the resource matrix's principal values (some of which may be 0), while the rows of r correspond to an orthonormal basis for the space of possible cycles; we are interested in those that are null'd by multiplication with the resource matrix, which in this decomposition correspond to the last d rows of r, where d is the difference between the number of steps and the number of non-zero singular values
-        
-        l,v,r = np.linalg.svd(self.matrix[3:])
-        
-        #calculate dimension of the kernel, based on number of vectors corresponding to null columns plus number of vectors corresponding to null eigenvalues
-        
-        #np.isclose(v, 0, atol=5e-16) is a boolean array indicating whether each singular value is close enough to zero so that the .sum() may count the number of Trues
-        self.grind_dim = self.dim1 - len(v) + np.isclose(v, 0, atol=5e-16).sum()
-        
-        #calculates the total echo gain of each step, converting scrip to echoes through hambitrage
-        self.gain = self.matrix[1] + eps*self.matrix[2]
-        
-        #if self.grind_dim == 1 that means there is only one possible solution, stored as the last row of the r array
-        if (self.grind_dim == 1):
 
-            self.solution = r[-1]
-            actions = np.dot(self.solution, self.matrix[0])
-            echoes = np.dot(self.solution, self.gain)
-            #scrip = np.dot(self.sol, self.matrix[2])
-            self.epa = echoes/actions
-            
-        #if grind_dim == 0 that means that there is no way to chain all or some of these steps into a self-sufficient cycle
-        
-        elif (self.grind_dim == 0):
-            
-            print('warning: grind not practicable (no solutions)')
-            
-        #if dim_grind > 1 that means there is an infinite number of possible solutions, all of which can be represented as a linear combination of the last dim_grind rows of r (up to a scale factor); we must use scipy.optimize.minimize to find the optimal one while imposing the reality constraint of a positive number for all steps (they can't be undone!)  
-        
-        else:
-            
-            self.basis = r[-self.grind_dim:].transpose() #basis for the resource matrix's nullspace
-            
-            self.X = np.matmul(self.gain, self.basis)
-            self.Y = np.matmul(self.matrix[0], self.basis)
-            x_0 = np.ones(self.grind_dim)
-            reality_constr = LinearConstraint(self.basis, 0, +np.inf)
-            result = minimize(self.calc_invepa, x_0, constraints=reality_constr,)
-            #result = minimize(self.calc_invepa, constraints=reality_constr,)
-            
-            if result.success:
-                
-                print('optimization successful')
-                #print(result.maxcv)
-                self.solution = np.matmul(self.basis, result.x)
-                self.epa = 1/self.calc_invepa(result.x)
-                
-        #check that the solution found is a valid one: all entries need to either be zero (which is signalled, as it means that one step is superfluous) or of the same sign, as otherwise the grind would require some steps to be *undone*, which is obviously impossible.
-        
-        signs = np.sign(self.solution)
-        check1 = np.abs(signs.sum())
-        check2 = np.abs(signs).sum()
-
-        if (check1 != self.dim1):
-            
-            if( check2 < self.dim1):
-                print('warning: unnecessary step')
-                
-            if( check1 != check2):
-                print('erorr: grind not practicable')
-                
-    def calc_invepa(self, v):
-        
-        echoes = np.matmul(self.X, v)
-        actions = np.matmul(self.Y, v)
-        
-        return actions/echoes
-        
-    # prints the frequency of each step in the optimal cycle, relative to the first step in the list
-    # example: if your grind consists of 'get whirring contraptions from wilmot's end' and 'publish a newspaper' then the result will appear as:
-    #
-    # 'get whirring contraptions from wilmot's end': 1.000000
-    # 'publish a newspaper': 0.500000
-    
-    def print_ratios(self):
-        
-        for key in self.steps:
-            ratio = self.solution[self.step_ref[key]]/self.solution[0]
-            print(key + ': %.15f' % ratio)
             
             
             
