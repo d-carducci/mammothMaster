@@ -22,7 +22,7 @@ from .mammothRecipe import ALL_STEPS, RES, REFR, LENGTH, EPS, Overflow
 
 class grind: 
     
-    def __init__(self, stats, steps, overflow_list=0, blacklist=0, **kwargs):
+    def __init__(self, stats, steps, overflow_list=0, blacklist=0, kwargs=0):
         
         self.dim1 = len(steps)
             
@@ -42,13 +42,16 @@ class grind:
         if blacklist: #adds the item blacklist to inv_mask so that they may be ignored
             for item in blacklist:
                 inv_mask[REFR[item]] = 1
-                
+        
+        print(kwargs)
+        
         i = 0
         #collates the resource matrix
         for stp_name in steps:
             
             if stp_name in kwargs: #check if kwargs include additional inputs for this step
-                temp = ALL_STEPS[stp_name](stats, kwargs[stp_name])
+                temp = ALL_STEPS[stp_name](stats, *kwargs[stp_name])
+                print('yo')
                 
             else:
                 temp = ALL_STEPS[stp_name](stats)

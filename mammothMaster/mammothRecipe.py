@@ -2,20 +2,19 @@ import numpy as np
 from scipy.stats import binom
 
 ## social heals:
-#  determines whether the menace healing rate is set to the 6 cp/action from social heals or to the 3 cp/action from many late-game single-player options
+#  Determines whether the menace healing rate is set to the 6 cp/action from social heals or to the 3 cp/action from many late-game single-player options.
 ## scrimshander_knife:
-#  determines whether to account for the possibility of removing Antiquity using the event-locked Scrimshander Carving Knife
+#  Determines whether to account for the possibility of removing Antiquity using the event-locked Scrimshander Carving Knife.
 ## use_HRelic_on_HellM:
-#  determines whether to fill unused limb slots on Mammoths from Hell using Unidentified Thigh Bones or Holy Relics of the Thigh of St Fiacre
+#  Determines whether to fill unused limb slots on Mammoths from Hell using Unidentified Thigh Bones or Holy Relics of the Thigh of St Fiacre.
 
 social_heals = 1
-scrimshander_knife = 1
-use_HRelic_on_HellM = 1
 debonair_palaeontologist = 1
 
-## dictionary hell:
-#  RES is an array containing the name of every resource involved in the grind; the REFR dictionary is an hack to reference array entries using the in-game resouce name rather than the index number without having to deal with panda dataframes
-#  do always keep actions/echoes/scrip in that order as the first three elements though, otherwise it makes some stuff much more cumbersome
+## The RES dictionary
+#  RES is a list containing the name of every resource involved in the grind; the REFR dictionary is an hack to reference array entries using the in-game resouce name rather than the index number without having to deal with panda dataframes.
+
+#  do always keep actions/echoes/scrip in that order as the first three elements though, otherwise it makes some stuff much more cumbersome.
 
 RES = np.array(['Actions', 'Echoes', 'Scrip', 'TBScraps', 'MoDS', 'BFragments', 'Peppercaps', 'WAmber', 'CasingCP', 'Moonlit', 'Sw7Necks', 'GenSkeleton', 'WTentacles', 'MRibcage', 'HRelics', 'BSurveys', 'PDiscovery', 'JBStinger', 'PTBones', 'HSkull', 'JThigh', 'IBiscuits', 'PSkull'])
 LENGTH = len(RES)
@@ -27,11 +26,11 @@ for i in range(LENGTH):
     REFR[RES[i]] = i
 
 ## Balmoral stuff
-#  these are all average numbers of actions taken while in the Balmoral woods assuming particular strategies and aPoC scores (aPoC = array index); all numbers were calcuated simulating and averaging 1e7 rounds through the woods
+#  these are all average numbers of actions taken while in the Balmoral woods assuming particular strategies and aPoC scores (aPoC = array index); all numbers were calcuated simulating and averaging 1e7 rounds through the woods.
 
-#  mam_avg = average number of actions spent wandering the woods when sourcing Mammoth Ribcages, assuming you only darken when it becomes necessary
-#  neck7_wander = average number of actions spent wandering the woods when sourcing Skeletons with 7 Necks, assuming you only darken when it becomes necessary
-#  neck7_dark = probability of needing to darken the woods when sourcing Skeletons with 7 Necks, assuming you only darken when it becomes necessary
+#  mam_avg = average number of actions spent wandering the woods when sourcing Mammoth Ribcages, assuming you only darken when it becomes necessary.
+#  neck7_wander = average number of actions spent wandering the woods when sourcing Skeletons with 7 Necks, assuming you only darken when it becomes necessary.
+#  neck7_dark = probability of needing to darken the woods when sourcing Skeletons with 7 Necks, assuming you only darken when it becomes necessary.
 
 mam_avg = np.array([6, 5.538, 5.149, 4.831, 4.594, 4.461, 4.471, 4.694, 5.236, 6.261, 8])
 neck7_wander = np.array([5, 5.523, 6, 6.339, 6.499, 6.484, 6.327, 6.074, 5.769, 5.425, 5])
@@ -40,7 +39,7 @@ neck7_dark = np.array([1, 0.974, 0.852, 0.647, 0.42, 0.227, 0.096, 0.029, 0.005,
 
 
 ## check difficulties:
-#  ufuncs calculating the success chance of a check, with the same convention of difficulty = score at which you have a 60% chance of succeeding
+#  ufuncs calculating the success chance of a check, with the same convention of difficulty = (score at which you have a 60% chance of succeeding).
 
 def broad(difficulty, score):
     if (difficulty == 0):
@@ -60,13 +59,13 @@ checks = {'broad': broad, 'narrow': narrow}
 
 ## the recipe class
 #  each instance represents a different possible step in the grind; the main feature is the self.resources array, containing the item changes involved in it. 
-#  in_resources is a dictionary where each entry is of the form {'resource name': change} and only the desired non-zero entries needing to be specified (thanks to self.resources being initialized with np.zeros rather than np.empty
+#  in_resources is a dictionary where each entry is of the form {'resource name': change} and only the desired non-zero entries needing to be specified (thanks to self.resources being initialized with np.zeros rather than np.empty).
 
-# index 0 ('Actions') is the only one where an expense is recorded as a positive number rather than a negative number, since there's no way to gain actions during regular play
+# index 0 ('Actions') is the only one where an expense is recorded as a positive number rather than a negative number, since there's no way to gain actions during regular play.
 
-# the self.(*)_penalty functions come in handy when calculating the resources array of steps where a player's stats influence the outcome
+# the self.(*)_penalty functions come in handy when calculating the resources array of steps where a player's stats influence the outcome.
 
-# the self.(*)_resource allows quick access to the self.resources array through the resource name rather than its index in RES
+# the self.(*)_resource functions allows quick access to the self.resources array through the resource name rather than its index in RES
 
 class recipe:
     
@@ -99,27 +98,31 @@ class recipe:
         
         self.resources[REFR[key]] -= amnt
     
+    #raises action_cost due to failing checks
+    
     def action_penalty(self, difficulty, stat, mode='broad'):
-        #raises action_cost due to failing checks
+        
         
         p = checks[mode](difficulty, stat)
         
         self.resources[0] += 1/p - 1
         return 1/p - 1
         
-        
+    #raises action_cost due to failing checks and needing to heal menaces from said failed checks
+    
     def menace_penalty(self, difficulty, stat, menace, mode='broad'):
-        #raises action_cost due to failing checks and needing to heal menaces from said check
+        
         fail = self.action_penalty(difficulty, stat, mode)
         heal = fail*menace/3/(1 + social_heals)
         self.resources[0] += heal
         return heal
-        
+            
+    #raises action cost due to failed sales and healing menaces from implausibility.
+    #takes two arrays, one with the possible implausibility values and the other with the chance of those values occuring
         
     def sell_penalty(self, multiplier, stat, menace, implausibility, probability):
         
-        #raises action cost due to failed sales and healing menaces from implausibility
-        #takes two arrays, one with the possible implausibility values and the other with the chance of those values occuring
+        
         
         p = broad(multiplier*implausibility, stat)
         penalty = probability*(1/p - 1)*(1 + menace/3/(1 + social_heals))
@@ -132,11 +135,12 @@ class recipe:
 
 ## The Recipe List
 
-#  here we define every step of the grind, using functions that return specific instances of the recipe class
-#  *stats*: the stats input is a dictionary containing all the player stats as entries of the form {'statname': score}
-#  *strat*: the Balmoral woods step have an additional input, a string which specifies what strategy to follow with regards to Darken the woods; this is only relevant for aPoC < 9 and hasn't been properly implemented yet
+#  Here we define every possible steps of the grind using functions that return specific instances of the recipe class.
 
-#  as a convention resources the number of which doesn't depend on player stats (partially or entirely) are specified at inizialition, while variable resources are calculated following initialization
+#  *stats*: the stats input is a dictionary containing all the player stats as entries of the form {'statname': score}.
+#  *strat*: the Balmoral woods step have an additional input, a string which specifies what strategy to follow with regards to Darken the woods; by default it chooses the one that's more optimal, based on the Player of Chess score submitted.
+
+#  Some resources are set at initialization while others in the body of the function; this is done following the criteria that 1) the resources specified at initialization should be fixed and 2) there should be as few instance.add_resource calls as possible.
         
     
 def GetMammoth(stats, strat='best'):
@@ -387,7 +391,7 @@ def EasyMammoth(stats):
     
     
 
-def HolyMammoth(stats):
+def HolyMammoth(stats, scrimshander_knife=1):
     
     if scrimshander_knife == 0:
         
@@ -437,15 +441,9 @@ def UngodlyMammoth(stats):
     instance.sell_penalty(50, stats['Shadowy'], 2, impl2[0:-1], temp*tail_succ*tent_fail)
     instance.sell_penalty(50, stats['Shadowy'], 2, impl2[1:], temp*tail_fail*tent_fail)
     
-    # prob = np.array([tail_succ*legs_succ**3, tail_fail*legs_succ**3 + 3*tail_succ*legs_fail*legs_succ**2, 3*tail_fail*legs_fail*legs_succ**2 +3*tail_succ*legs_succ*fail_succ**2, 3*tail_fail*legs_succ*fail_succ**2 + tail_succ*legs_fail**3, tail_fail*legs_fail**3])
-    #     
-
-    #   instance.sell_penalty(50, stats['Shadowy'], 2, impl1, prob*tent_succ) 
-    # instance.sell_penalty(50, stats['Shadowy'], 2, impl2, prob*tent_fail)   
-    
     return instance
     
-def HellMammoth(stats):
+def HellMammoth(stats, scrimshander_knife=1, use_HRelic_on_HellM=0):
     
     instance = recipe('Mammoth from Hell', {'Actions': 9, 'MRibcage': -1, 'HSkull': -1, 'Scrip': 125 + 25 + 5*4})
     
@@ -472,7 +470,8 @@ def HellMammoth(stats):
     #  use HRelic or UTBone, no tail, 9 Antiquity 2 Menace
     
     if (scrimshander_knife == 0):
-    
+        
+        print('no scrimshander')
         chance = skull_succ*limb_succ**3
         
         instance.resources[REFR['Scrip']] += chance*(25*use_HRelic_on_HellM -5 + 90)
@@ -489,6 +488,8 @@ def HellMammoth(stats):
             proba[:2] = chimera_prob*chance*relic_succ
             proba[2:] = chimera_prob*chance*relic_fail
             instance.sell_penalty(75, stats['Shadowy'], 5, impla, proba)
+            
+        
             
     else:   #4 successess: scrimshander knife
         
@@ -610,8 +611,8 @@ def TentacleHelicon1(stats):
     
     draw_succ = narrow(4, stats['SArts'])
     instance.resources[REFR['Scrip']] += 3*draw_succ
-    instance.resources[REFR['WTentacles']] += 3*draw_succ
-    instance.resources[REFR['WAmber']] -= 5*draw_succ
+    instance.resources[REFR['WTentacles']] += 3*3*draw_succ
+    instance.resources[REFR['WAmber']] -= 5*3*draw_succ
     
     return instance
     
