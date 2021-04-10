@@ -17,7 +17,12 @@ debonair_palaeontologist = 1
 #  RES is an array containing the name of every resource involved in the grind; the REFR dictionary is an hack to reference array entries using the in-game resouce name rather than the index number without having to deal with panda dataframes
 #  do always keep actions/echoes/scrip in that order as the first three elements though, otherwise it makes some stuff much more cumbersome
 
-RES = np.array(['Actions', 'Echoes', 'Scrip', 'TBScraps', 'MoDS', 'BFragments', 'Peppercaps', 'WAmber', 'CasingCP', 'Moonlit', 'Sw7Necks', 'GenSkeleton', 'WTentacles', 'MRibcage', 'HRelics', 'BSurveys', 'PDiscovery', 'JBStinger', 'PTBones', 'HSkull', 'JThigh', 'IBiscuits', 'PSkull'])
+RES = np.array(['Actions', 'Echoes', 'Scrip', 'TBScraps', 'MoDS', 'VCResearch', 'BFragments', 'Peppercaps', 'WAmber',
+                'CasingCP', 'Moonlit', 'Sw7Necks', 'GenSkeleton', 'WTentacles', 'MRibcage', 'HRelics',
+                'BSurveys', 'PDiscovery', 'JBStinger', 'PTBones', 'HSkull', 'JThigh', 'IBiscuits', 'PSkull',
+                'PSBlooms', 'URRumors', 'Antique Mystery', 'Scintillack', 'PFrame', 'PGenerator'])
+PRICES = {'PSBlooms': ['Echoes', 2.5], 'IBiscuits': ['Scrip', 5], 'URRumours': ['Echoes', 2.5],
+          'Scintillack': ['Scrip', 5]}
 LENGTH = len(RES)
 REFR = {}
 EPS = 63.5/125 #scrip-to-epa conversione rate from hambitrage (Ham arbitrage)
@@ -27,7 +32,9 @@ for i in range(LENGTH):
     REFR[RES[i]] = i
 
 ## Balmoral stuff
-#  these are all average numbers of actions taken while in the Balmoral woods assuming particular strategies and aPoC scores (aPoC = array index); all numbers were calcuated simulating and averaging 1e7 rounds through the woods
+#  these are all average numbers of actions taken while in the Balmoral woods assuming particular strategies
+#  and aPoC scores (aPoC = array index); all numbers were calcuated simulating and averaging 1e7 rounds through
+#  the woods
 
 #  mam_avg = average number of actions spent wandering the woods when sourcing Mammoth Ribcages, assuming you only darken when it becomes necessary
 #  neck7_wander = average number of actions spent wandering the woods when sourcing Skeletons with 7 Necks, assuming you only darken when it becomes necessary
@@ -43,7 +50,7 @@ neck7_dark = np.array([1, 0.974, 0.852, 0.647, 0.42, 0.227, 0.096, 0.029, 0.005,
 #  ufuncs calculating the success chance of a check, with the same convention of difficulty = score at which you have a 60% chance of succeeding
 
 def broad(difficulty, score):
-    if (difficulty == 0):
+    if difficulty == 0:
         return 1
     return min(1, 0.6*score/difficulty)
     
@@ -54,19 +61,22 @@ def narrow(difficulty, score):
 broad = np.frompyfunc(broad, 2, 1)
 narrow = np.frompyfunc(narrow, 2, 1)
 
-
 checks = {'broad': broad, 'narrow': narrow}
-    
 
 ## the recipe class
-#  each instance represents a different possible step in the grind; the main feature is the self.resources array, containing the item changes involved in it. 
-#  in_resources is a dictionary where each entry is of the form {'resource name': change} and only the desired non-zero entries needing to be specified (thanks to self.resources being initialized with np.zeros rather than np.empty
+#  each instance represents a different possible step in the grind;
+#   the main feature is the self.resources array, containing the item changes involved in it.
+#  in_resources is a dictionary where each entry is of the form {'resource name': change} and only the desired
+#   non-zero entries needing to be specified (on account of to self.resources being initialized with np.zeros)
 
-# index 0 ('Actions') is the only one where an expense is recorded as a positive number rather than a negative number, since there's no way to gain actions during regular play
+# index 0 ('Actions') is the only one where an expense is recorded as a positive number
+# rather than a negative number, since there's no way to gain actions during regular play
 
-# the self.(*)_penalty functions come in handy when calculating the resources array of steps where a player's stats influence the outcome
+# the self.(*)_penalty functions come in handy when calculating the resources array of steps
+#   where a player's stats influence the outcome
 
-# the self.(*)_resource allows quick access to the self.resources array through the resource name rather than its index in RES
+# the self.(*)_resource allows quick access to the self.resources array through the resource name
+#   rather than its index in RES
 
 class recipe:
     
@@ -126,22 +136,26 @@ class recipe:
         self.resources[0] += penalty
         
         return penalty
-        
-
-
 
 ## The Recipe List
 
-#  here we define every step of the grind, using functions that return specific instances of the recipe class
-#  *stats*: the stats input is a dictionary containing all the player stats as entries of the form {'statname': score}
-#  *strat*: the Balmoral woods step have an additional input, a string which specifies what strategy to follow with regards to Darken the woods; this is only relevant for aPoC < 9 and hasn't been properly implemented yet
+#   here we define every step of the grind, using functions that return specific instances of the recipe class
+#   *stats*: the stats input is a dictionary containing all the player stats as entries of the form
+#            {'statname': score}
+#   *strat*: the Balmoral woods step have an additional input, a string which specifies
+#            what strategy to follow with regards to Darken the woods; this is only relevant for aPoC < 9
+#   *PLrate*: additional input on bone newspapers indicating how many of them are published using the Rumours option on
+#             the A Public Lecture opp card, must be a float between 0 and 1
+#  *scrimshander_knife*: additional input on skeleton recipes that require use of the Scrimshander Carving Knife
+#  *companion*: additional input on
 
-#  as a convention resources the number of which doesn't depend on player stats (partially or entirely) are specified at inizialition, while variable resources are calculated following initialization
+#  as a convention resources the number of which doesn't depend on player stats (partially or entirely)
+#  are specified at inizialition, while variable resources are calculated following initialization
         
     
 def GetMammoth(stats, strat='best'):
     
-    instance = recipe('Get Ribcage', {'Actions': 6.96, 'MRibcage': 1, 'HRelics': 2, 'Echoes' : -0.16, 'MoDS' : -40})
+    instance = recipe('Get Ribcage', {'Actions': 6, 'MRibcage': 1, 'HRelics': 2, 'VCResearch' : -8})
     apoc = min(10, stats['aPoC'])
     wander_succ = narrow(6, apoc)
     
@@ -164,11 +178,10 @@ def GetMammoth(stats, strat='best'):
         instance.resources[0] += mam_avg[apoc] + 1-wander_succ**8
         
     return instance
-        
-        
+
 def Get7Necks(stats, strat='best'):
     
-    instance = recipe('Get Ribcage', {'Actions': 7.96, 'Sw7Necks': 1, 'Echoes' : -0.16, 'MoDS' : -40})
+    instance = recipe('Get Ribcage', {'Actions': 7, 'Sw7Necks': 1, 'VCResearch': -8})
     apoc = min(10, stats['aPoC'])
     #wander_succ = narrow(6, apoc)
     
@@ -230,7 +243,6 @@ def DuplicateHSkull(stats):
     instance = recipe('Duplicate Ox Skull', {'Actions':1, 'BFragments': -1000, 'WAmber': -5, 'HSkull': 1})
     return instance
     
-    
 def DuplicatePSkull(stats):
     
     instance = recipe('Duplicate Seal Skull', {'Actions':1, 'BFragments': -1750, 'WAmber': -25, 'IBiscuits': -1, 'PSkull': 1})
@@ -247,12 +259,10 @@ def ZeeMammoth(stats):
     tail_fail = 1 - tail_succ
     
     chimera_succ = narrow(11, stats['Mith'])
-    chimera_impl = np.array([3, 6])
     chimera_prob = np.array([chimera_succ, 1 - chimera_succ])
     
     limb_succ = narrow(11, stats['MAnatomy'])
-    limb_fail = 1 - limb_succ
-    
+
     #if skull attachment succeeds, attach all legs and if all succeed also add tentacle
     
     needtail_chance = skull_succ*limb_succ**4
@@ -276,7 +286,6 @@ def ZeeMammoth(stats):
     instance.sell_penalty(75, stats['Shadowy'], 5, impla, proba)
     
     return instance
-    
 
 def EasyMammoth(stats):
     
@@ -320,14 +329,14 @@ def EasyMammoth(stats):
     
     #if skull succeeds: 
     
-    if (scrimshander_knife == 0):
+    if scrimshander_knife == 0:
     
         chance = skull_succ*limb_succ**3
         
         instance.resources[REFR['Scrip']] += chance*(25*use_HRelic_on_HellM -5 + 90)
         instance.resources[REFR['HRelics']] -= chance*use_HRelic_on_HellM
         
-        if (use_HRelic_on_HellM == 0):        
+        if use_HRelic_on_HellM == 0:
             instance.sell_penalty(75, stats['Shadowy'], 5, chimera_impl, chance*chimera_prob)
             
         else:
@@ -384,10 +393,48 @@ def EasyMammoth(stats):
     instance.sell_penalty(75, stats['Shadowy'], 5, chimera_impl, chance.sum()*chimera_prob)
     
     return instance
-    
-    
 
-def HolyMammoth(stats):
+def WingedMammoth(stats):
+
+    instance = recipe('One-winged Mammoth', {'Actions': 10.5, 'MRibcage': -1, 'Scrip': 125 + 5*4,
+                                             'BFragments': -50, 'WAmber': -12.5})
+    limb_succ = narrow(11, stats['MAnatomy'])
+
+    skull_succ = narrow(6, stats['MAnatomy'])
+    skull_fail = 1 - skull_succ
+
+    tail_succ = narrow(5, stats['MAnatomy'])
+    tail_fail = 1 - tail_succ
+
+    chimera_succ = narrow(11, stats['Mith'])
+    chimera_prob = np.array([chimera_succ, 1 - chimera_succ])
+
+    buy_succ = broad(200, stats['Persuasive'])
+    instance.add_resource('Scrip', 5*buy_succ)
+
+    # if skull attachment succeeds: add one wing, three forelimbs, one tentacle tail if needed; 2M 7-9A
+    antiquity = np.array([7, 8, 9])
+    needtail_chance = skull_succ*limb_succ**3
+    chance = skull_succ * binom.pmf(antiquity - 7, 3, limb_succ)
+    chance[-1] += needtail_chance
+
+    instance.add_resource('Scrip', 10 * np.dot(antiquity, chance) + 5 * needtail_chance)
+
+    # if skull attachment fails: add two wings, two forelimbs; 2M 7-9A
+    instance.add_resource('Actions', skull_fail*0.5)
+    instance.remove_resource('WAmber', skull_fail*12.5)
+    instance.remove_resource('BFragments', skull_fail*50)
+    instance.add_resource('Scrip', skull_fail*(70 + 20*limb_succ))
+
+    impla = np.array([3, 6, 5, 8])
+    proba = np.empty(4)
+    proba[:2] = chimera_prob * needtail_chance * tail_succ
+    proba[2:] = chimera_prob * needtail_chance * tail_fail
+    instance.sell_penalty(75, stats['Shadowy'], 5, impla, proba)
+
+    return instance
+
+def HolyMammoth(stats, scrimshander_knife=1):
     
     if scrimshander_knife == 0:
         
@@ -445,7 +492,7 @@ def UngodlyMammoth(stats):
     
     return instance
     
-def HellMammoth(stats):
+def HellMammoth(stats, scrimshander_knife=1):
     
     instance = recipe('Mammoth from Hell', {'Actions': 9, 'MRibcage': -1, 'HSkull': -1, 'Scrip': 125 + 25 + 5*4})
     
@@ -471,14 +518,14 @@ def HellMammoth(stats):
     #3 successes on first 3 Fossilised Forelimbs=
     #  use HRelic or UTBone, no tail, 9 Antiquity 2 Menace
     
-    if (scrimshander_knife == 0):
+    if scrimshander_knife == 0:
     
         chance = skull_succ*limb_succ**3
         
         instance.resources[REFR['Scrip']] += chance*(25*use_HRelic_on_HellM -5 + 90)
         instance.resources[REFR['HRelics']] -= chance*use_HRelic_on_HellM
         
-        if (use_HRelic_on_HellM == 0):        
+        if use_HRelic_on_HellM == 0:
             instance.sell_penalty(75, stats['Shadowy'], 5, chimera_impl, chance*chimera_prob)
             
         else:
@@ -597,22 +644,61 @@ def SellNaive(stats):
     instance.sell_penalty(25, stats['Shadowy'], 3.5, impl, prob)
     
     return instance
-    
-def BasicHelicon(stats):
-    
-    instance = recipe('Basic Helicon Round', {'Actions': 6, 'Peppercaps': 25, 'Echoes': 0.5, 'Scrip': 3, 'CasingCP': 15})
-    
+
+def SellTheologian(stats):
+    instance = recipe('Sell to Theologian', {'GenSkeleton': -1, 'IBiscuits': 226})
+
+    disguise_succ = narrow(6, stats['Katatox'])
+    disguise_fail = 1 - disguise_succ
+    instance.add_resource('Actions', 1/disguise_succ)
+    instance.remove_resource('Echoes', 0.5/disguise_succ)
+
+    # for the sake of my sanity i'm assuming you won't fail this more than twice
+    impl = np.array([3, 5, 7, 6, 8, 10])
+    chimera_succ = narrow(11, stats['Mith'])
+    chimera_fail = 1 - chimera_succ
+    prob = np.empty(6)
+    prob[:3] = chimera_succ
+    prob[3:] = chimera_fail
+    prob[::3] *= disguise_succ
+    prob[1::3] *= disguise_succ*disguise_fail
+    prob[2::3] *= disguise_succ*disguise_fail**2
+
+    instance.sell_penalty(25, stats['Shadowy'], 3.5, impl, prob)
+
     return instance
     
-def TentacleHelicon1(stats):
+def BasicHelicon(stats, companion=None):
+    
+    instance = recipe('Basic Helicon Round', {'Actions': 6, 'Peppercaps': 25, 'Echoes': 0.5, 'Scrip': 3, 'CasingCP': 15})
+    if companion is 'casing':
+        instance.add_resource('CasingCP', 3)
+    return instance
+    
+def TentacleHelicon1(stats, companion=None):
     
     instance = recipe('Tentacle Helicon Round 1', {'Actions': 6, 'Peppercaps': 25, 'Echoes': 0.5, 'Scrip': 2})
     
     draw_succ = narrow(4, stats['SArts'])
-    instance.resources[REFR['Scrip']] += 3*draw_succ
-    instance.resources[REFR['WTentacles']] += 3*draw_succ
-    instance.resources[REFR['WAmber']] -= 5*draw_succ
+    instance.add_resource('Scrip', 3*draw_succ)
+    instance.add_resource('WTentacles', 3*3*draw_succ)
+    instance.remove_resource('WAmber', 3*5*draw_succ)
+    if companion is not None:
+        instance.add_resource('CasingCP', 3)
     
+    return instance
+
+def TentacleHelicon2(stats, companion=None):
+    instance = recipe('Tentacle Helicon Round 2', {'Actions': 6, 'CasingCP': 6, 'Peppercaps': 25,
+                                                   'Echoes': 0.5, 'Scrip': 2})
+
+    draw_succ = narrow(4, stats['SArts'])
+    instance.add_resource('Scrip', 2 * draw_succ)
+    instance.add_resource('WTentacles', 2 * 3 * draw_succ)
+    instance.remove_resource('WAmber', 2 * 5 * draw_succ)
+    if companion is not None:
+        instance.add_resource('CasingCP', 3)
+
     return instance
     
 def MediumLarceny(stats):
@@ -620,7 +706,19 @@ def MediumLarceny(stats):
     instance = recipe('Medium Claywayman Larceny', {'Actions': 1, 'Echoes': 27.5, 'CasingCP': -36})
     
     return instance
-    
+
+def ResearchLarceny(stats):
+    instance = recipe('Research Claywayman Larceny', {'Actions': 1, 'VCResearch': 3, 'CasingCP': -21})
+
+    return instance
+
+def UpconvertMemories(stats):
+    instance = recipe('Upconvert Memories', {'Actions': 18, 'Echoes': -3, 'MoDS': -750, 'VCResearch': 150})
+    avg_gain = 5.7e-1 + 25*3e-2
+    instance.add_resource('Echoes', 15*avg_gain)
+
+    return instance
+
 def Painting(stats):
     
     instance = recipe('Painting at Balmoral', {'Actions': 11, 'Moonlit': -12, 'Echoes': 85})
@@ -649,6 +747,9 @@ def SellHRelicIB(stats):
 def Overflow(resource):
     
     instance = recipe(resource + ' Overflow', {resource: -1})
+    if resource in PRICES:
+        instance.add_resource(*PRICES[resource])
+
     return instance
     
 
@@ -657,31 +758,16 @@ def Overflow(resource):
 
 # ALL_STEPS: dictionary containing all the recipe funcionts, indexed by their name (yeah it doesn't always math with the one in the recipe initialization)
 
-ALL_STEPS = {'Get Mammoth': GetMammoth, 'Get 7Necks': Get7Necks, 'Holy Mammoth': HolyMammoth, 'Ungodly Mammoth': UngodlyMammoth, 'Mammoth from Hell': HellMammoth, 'Generator Skeleton': GeneratorSkeleton, 'Sell to Entrepreneur': SellEntrepreneur, 'Sell to Palaeontologist': SellPalaeontologist, 'Sell to Zailor': SellZailor, 'Sell to Naive': SellNaive, 'Basic Helicon Round': BasicHelicon, 'Tentacle Helicon Round 1': TentacleHelicon1, 'Medium Larceny': MediumLarceny, 'Painting': Painting, 'Duplicate Ox Skull': DuplicateHSkull, 'Duplicate Seal Skull': DuplicatePSkull}
-
-ALL_STEPS['Dig at SVIII'] = SVIIIdig
-ALL_STEPS['Discover Mammoth'] = PDMRibcage
-ALL_STEPS['Discover HSkull'] = PDHSkull
-ALL_STEPS['Discover JThigh'] = PDJThigh
-ALL_STEPS['Bone Newspaper'] = BoneNewspaper
-ALL_STEPS['Easy Mammoth'] = EasyMammoth
-ALL_STEPS['Discover BFragments'] = PDBFragments
-ALL_STEPS['Sell HRelic for BFragments'] = SellHRelicBF
-ALL_STEPS['Sell HRelic for IBiscuits'] = SellHRelicIB
-ALL_STEPS['Mammoth of the Zee'] = ZeeMammoth
-
-    
-    
-## the grind class:
-#  the math meat of the library, each instance takes as input a stat array and a steps array containing the string name for every step in the hypothetical grind you wish to analyze; for each step it creates an instance, shoves its self.resources array in its 2d matrix and transposes it at the end, so that each *row* corresponds to one resource and each *column* corresponds to one step; then numpy.linal.svd() does its math and solves the grind for us
-    
-
-            
-            
-            
-            
-        
-        
-
-    
-    
+ALL_STEPS = {'Get Mammoth': GetMammoth, 'Get 7Necks': Get7Necks, 'Holy Mammoth': HolyMammoth,
+             'Ungodly Mammoth': UngodlyMammoth, 'Mammoth from Hell': HellMammoth,
+             'Generator Skeleton': GeneratorSkeleton, 'Sell to Entrepreneur': SellEntrepreneur,
+             'Sell to Palaeontologist': SellPalaeontologist, 'Sell to Zailor': SellZailor, 'Sell to Naive': SellNaive,
+             'Basic Helicon Round': BasicHelicon, 'Tentacle Helicon Round 1': TentacleHelicon1,
+             'Tentacle Helicon Round 2': TentacleHelicon2, 'Medium Larceny': MediumLarceny, 'Painting': Painting,
+             'Duplicate Ox Skull': DuplicateHSkull, 'Upconvert MoDS': UpconvertMemories,
+             'Duplicate Seal Skull': DuplicatePSkull, 'Dig at SVIII': SVIIIdig, 'Discover Mammoth': PDMRibcage,
+             'Discover HSkull': PDHSkull, 'Discover JThigh': PDJThigh, 'Bone Newspaper': BoneNewspaper,
+             'Easy Mammoth': EasyMammoth, 'Discover BFragments': PDBFragments,
+             'Sell HRelic for BFragments': SellHRelicBF, 'Sell HRelic for IBiscuits': SellHRelicIB,
+             'Mammoth of the Zee': ZeeMammoth, 'Research Larceny': ResearchLarceny,
+             'One-winged Mammoth': WingedMammoth, 'Sell to Theologian': SellTheologian}

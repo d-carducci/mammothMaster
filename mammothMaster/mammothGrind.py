@@ -2,34 +2,29 @@ import numpy as np
 from scipy.optimize import minimize, LinearConstraint
 from .mammothRecipe import ALL_STEPS, RES, REFR, LENGTH, EPS, Overflow
 
-## The grind class:
-# the class storing the meat of the mathematical machinery needed to solve the grind; takes as input on initialization:
+# The grind class:
+# the class storing the meat of the mathematical machinery needed to solve the grind
 
-# stats: dictionary containing all the player stats as entries of the form {'statname': score}
-
-# steps: list of the steps involved in the cycle, each stored as the string corresponding to the function in the ALL_STEPS dictionary
-
-# overlow: list of resources that are involved in the grind but aren't required to be completely consumed; will create additional "overflow" steps for each one to be put into; unlike the blacklist it will still make sure the overflow happens a non-negative number of times
-
-# blacklist: list of resources that should always be ignored when evaluating the cycle, even *despite* being involved in a step (example: 'JBStinger' in a grind that includes Palaeontological newspaper editions but makes no use of Jet-Black Stingers) 
-
-# **kwargs: additional arguments to be passed along to certain steps that accept additional inputs (example: strategies for balmoral runs), of the form dict('step name': [list of parameters])
-
-# contains the functions:
-
-# self.solve(): uses singular value decomposition to solve the grind and find the epa and the optimal solution
-
-
-class grind: 
+class Grind:
     
-    def __init__(self, stats, steps, overflow_list=0, blacklist=0, **kwargs):
-        
+    def __init__(self, stats, steps, overflow_list=None, blacklist=None, add_parameters={'NO':0}):
+        """
+
+        :param stats: dictionary containing all the player stats as entries of the form {'statname': score}.
+        :param steps: list of the steps involved in the cycle,
+            each stored as the string corresponding to the function in the ALL_STEPS dictionary.
+        :param overflow_list: list of resources that are involved in the grind but aren't required to be completely consumed;
+            will create additional "overflow" steps for each one to be put into.
+        :param blacklist: list of resources that should always be ignored when evaluating the cycle.
+        :param kwargs: additional arguments to be passed along to certain steps that accept additional inputs
+            (example: strategies for balmoral runs), of the form dict('step name': [list of parameters])
+        """
         self.dim1 = len(steps)
             
         self.ref = {} #dictionary reference of the resources involved in the cycle
         self.steps = [] #internal list of steps to take
         
-        if overflow_list:
+        if overflow_list is not None:
             self.dim1 += len(overflow_list)
             self.overflow_list = overflow_list
         
@@ -39,16 +34,16 @@ class grind:
         
         self.step_ref = {} #internal dictionary reference of the steps involved in the cycle
         
-        if blacklist: #adds the item blacklist to inv_mask so that they may be ignored
+        if blacklist is not None: #adds the item blacklist to inv_mask so that they may be ignored
             for item in blacklist:
                 inv_mask[REFR[item]] = 1
-                
+
         i = 0
         #collates the resource matrix
         for stp_name in steps:
-            
-            if stp_name in kwargs: #check if kwargs include additional inputs for this step
-                temp = ALL_STEPS[stp_name](stats, kwargs[stp_name])
+
+            if stp_name in add_parameters: #check if kwargs include additional inputs for this step
+                temp = ALL_STEPS[stp_name](stats, add_parameters[stp_name])
                 
             else:
                 temp = ALL_STEPS[stp_name](stats)
@@ -93,44 +88,64 @@ class grind:
         
     def solve(self):
         
-        #singular value decomposition: decomposes the resource matrix as l*V*r^-1; v is a list of the resource matrix's principal values (some of which may be 0), while the rows of r correspond to an orthonormal basis for the space of possible cycles; we are interested in those that are null'd by multiplication with the resource matrix, which in this decomposition correspond to the last d rows of r, where d is the difference between the number of steps and the number of non-zero singular values
+        #singular value decomposition: decomposes the resource matrix as l*V*r^-1;
+        # v is a list of the resource matrix's principal values (some of which may be 0),
+        # while the rows of r correspond to an orthonormal basis for the space of possible cycles;
+        # we are interested in those that are null'd by multiplication with the resource matrix,
+        # which in this decomposition correspond to the last d rows of r, where d is the difference
+        # between the number of steps and the number of non-zero singular values
         
         l,v,r = np.linalg.svd(self.matrix[3:])
         
-        #calculate dimension of the kernel, based on number of vectors corresponding to null columns plus number of vectors corresponding to null eigenvalues
+        #calculate dimension of the kernel, based on number of vectors corresponding to null columns
+        # plus number of vectors corresponding to null singular values
         
-        #np.isclose(v, 0, atol=5e-16) is a boolean array indicating whether each singular value is close enough to zero so that the .sum() may count the number of Trues
+        #np.isclose(v, 0, atol=5e-16) is a boolean array indicating whether each singular value is close enough
+        # to zero so that the .sum() may count the number of Trues
         self.grind_dim = self.dim1 - len(v) + np.isclose(v, 0, atol=5e-16).sum()
         
         #calculates the total echo gain of each step, converting scrip to echoes through hambitrage
         self.gain = self.matrix[1] + EPS*self.matrix[2]
         
-        #if self.grind_dim == 1 that means there is only one possible solution, stored as the last row of the r array
+        #if self.grind_dim == 1 that means there is only one possible solution,
+        # stored as the last row of the r array
         if (self.grind_dim == 1):
 
             self.solution = r[-1]
-            actions = np.dot(self.solution, self.matrix[0])
-            echoes = np.dot(self.solution, self.gain)
-            #scrip = np.dot(self.sol, self.matrix[2])
-            self.epa = echoes/actions
             
-        #if grind_dim == 0 that means that there is no way to chain all or some of these steps into a self-sufficient cycle
+        #if grind_dim == 0 that means that there is no way to chain all or some of these steps into a
+        # self-sufficient cycle
         
         elif (self.grind_dim == 0):
             
             print('warning: grind not practicable (no solutions)')
             
-        #if dim_grind > 1 that means there is an infinite number of possible solutions, all of which can be represented as a linear combination of the last dim_grind rows of r (up to a scale factor); we must use scipy.optimize.minimize to find the optimal one while imposing the reality constraint of a positive number for all steps (they can't be undone!)  
+        #if dim_grind > 1 that means there is an infinite number of possible solutions,
+        # all of which can be represented as a linear combination of the last dim_grind rows of r
+        # (up to a scale factor);
+        # we must use scipy.optimize.minimize to find the optimal one while imposing the reality constraint
+        # of a positive number for all steps (they can't be undone!)
         
         else:
             
             self.basis = r[-self.grind_dim:].transpose() #basis for the resource matrix's nullspace
-            
+            # We need to find the linear combination of our basis vectors that maximizes epa, with the constaint
+            # that it has to have all non-negative entries.
+
+            # To do so we write a "calculate one over epa" function such that it takes as input the (self.grind_dim)
+            # coefficients of said linear combination and use scipy.optimize.minimize to minimize it while respecting
+            # our reality constraint.
+
+            # Because minimize() only looks for local minima we choose the starting guess x_0
+            # such that it is as close to the np.ones(number of steps) vector as possible, thus improving the
+            # chances of it respecting our constraint; because self.basis is orthonormal this can be easily
+            # implemented by summing over its rows using ndarray.sum(0).
+
             self.X = np.matmul(self.gain, self.basis)
             self.Y = np.matmul(self.matrix[0], self.basis)
-            x_0 = np.ones(self.grind_dim)
+            x_0 = self.basis.sum(0)
             reality_constr = LinearConstraint(self.basis, 0, +np.inf)
-            result = minimize(self.calc_invepa, x_0, constraints=reality_constr,)
+            result = minimize(self.calc_invepa, x_0, method='SLSQP', constraints=reality_constr)
             #result = minimize(self.calc_invepa, constraints=reality_constr,)
             
             if result.success:
@@ -138,10 +153,19 @@ class grind:
                 print('optimization successful')
                 #print(result.maxcv)
                 self.solution = np.matmul(self.basis, result.x)
-                self.epa = 1/self.calc_invepa(result.x)
-                
+
+        actions = np.dot(self.solution, self.matrix[0])
+        echoes = np.dot(self.solution, self.matrix[1])
+        scrip = np.dot(self.solution, self.matrix[2])
+        echoesTotal = np.dot(self.solution, self.gain)
+        # scrip = np.dot(self.sol, self.matrix[2])
+        self.epaTotal = echoesTotal / actions
+        self.epa = echoes / actions
+        self.spa = scrip / actions
+
         #check that the solution found is a valid one: all entries need to either be zero (which is signalled, as it means that one step is superfluous) or of the same sign, as otherwise the grind would require some steps to be *undone*, which is obviously impossible.
-        
+
+
         signs = np.sign(self.solution)
         check1 = np.abs(signs.sum())
         check2 = np.abs(signs).sum()
@@ -172,3 +196,14 @@ class grind:
         for key in self.steps:
             ratio = self.solution[self.step_ref[key]]/self.solution[0]
             print(key + ': %.15f' % ratio)
+
+def ranching(*args, stats, overflow_list=None, blacklist=None, add_parameters={'NO':0}):
+
+    default = ['Get Mammoth', 'Get 7Necks', 'Generator Skeleton', 'Sell to Entrepreneur',
+               'Sell to Palaeontologist', 'Sell to Zailor', 'Sell to Naive', 'Medium Larceny',
+               'Painting', 'Upconvert MoDS']
+
+    for lists in args:
+        default = [*default, *lists]
+
+    return Grind(stats, default, overflow_list, blacklist, add_parameters)
