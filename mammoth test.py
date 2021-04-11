@@ -15,7 +15,7 @@ helRecipes = ['Basic Helicon Round', 'Tentacle Helicon Round 2', 'Ungodly Mammot
 dictio = {}
 
 toomany = ['WTentacles']
-toomany = None
+toomany = []
 
 # for i in range(len(step1)):
 #     dictio[step[i]] = i
@@ -38,7 +38,7 @@ for i in range(3):
         #helicon1[i, j] = trial.sol[dictio['Tentacle Helicon Round 1']]
         #helicon2[i, j] = trial.sol[dictio['Basic Helicon Round']]
         scores[test_stat] += 1
-        trial.print_ratios()
+        #print(trial.matrix('URRumours'))
         
     plt.scatter(7+np.arange(9), total[i], label=mamRecipes[i][0])
     #plt.scatter(8 + np.arange(8), echoesOnly[i], label="Echoes only, SC Knife: %s" % text[i])
@@ -49,5 +49,5 @@ for i in range(3):
 plt.legend()
 plt.xlabel(test_stat)
 plt.ylabel('Epa')
-plt.show()
 plt.savefig('author_variants_ungodly.png')
+plt.show()
