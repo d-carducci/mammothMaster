@@ -52,10 +52,10 @@ class Grind:
                 self.step_ref[stp_name] = i
                 self.steps.append(stp_name)
                 i += 1
-                if temp.ofresources:
+                if temp.OFresources:
                     # if the recipe involves resources that can both be sold or used in further steps, add them to
                     # the overflow list
-                    for item in temp.ofresources:
+                    for item in temp.OFresources:
                         if item not in overflow_list:
                             self.overflow_list.append(item)
 

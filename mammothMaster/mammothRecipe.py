@@ -65,9 +65,9 @@ checks = {'broad': broad, 'narrow': narrow}
 
 ## the recipe class
 #  each instance represents a different possible step in the grind;
-#   the main feature is the self.resources array, containing the item changes involved in it.
+#  the main feature is the self.resources array, containing the item changes involved in it.
 #  in_resources is a dictionary where each entry is of the form {'resource name': change} and only the desired
-#   non-zero entries needing to be specified (on account of to self.resources being initialized with np.zeros)
+#  non-zero entries need to be specified (on account of self.resources being initialized with np.zeros)
 
 # index 0 ('Actions') is the only one where an expense is recorded as a positive number
 # rather than a negative number, since there's no way to gain actions during regular play
@@ -87,7 +87,7 @@ class recipe:
         for KEY, VALUE in in_resources.items():
             self.add_resource(KEY, VALUE)
 
-        self.ofresources = overflow_resources
+        self.OFresources = overflow_resources
 
         self.action_penalty = np.frompyfunc(self.action_penalty, 3, 1)
         self.menace_penalty = np.frompyfunc(self.menace_penalty, 4, 1)
@@ -136,6 +136,73 @@ class recipe:
         self.resources[0] += penalty
 
         return penalty
+
+# The buyer class:
+# Each instance of the buyer class represents a different Bone Market buyer, with their different rewards, the scaling
+# of said rewards, and information on the difficulty scaling on their sell check; their main use is being called by the
+# sell_skeleton function defined further down the code
+
+class buyer:
+
+    def __init__(self, name, primary_payout, secondary_payout, primary_factor, primary_bonus=0,
+                                                       secondary_scaling, menaceCP, difficulty_scaling):
+        """
+
+        :param name: (string) The name of the buyer
+        :param primary_payout: (string) the resource they give as their primary payout
+        :param secondary_payout: (string) the resource they give as their secondary payout
+        :param primary_factor: (float) the factor by which a skeleton's value is multiplied to determine primary payout
+        :param primary_bonus: (int) the fixed bonus on their primary payout
+                                    (in addition to the one determined by skeleton value)
+        :param secondary_scaling: (dict) information on the scaling function that determines the secondary payout
+        :param menaceCP: (int) the amount of Suspicion CP received on a failure
+        :param difficulty_scaling: (int) the scaling factor that determines the sale check's difficulty, based on
+                                         the skeleton's implausibility
+        """
+        self.name = name
+        self.payout = dict(primary=primary_payout, secondary=secondary_payout)
+        self.factor = primary_factor
+        self.bonus = primary_bonus
+        self.menace = menaceCP
+        self.difficulty_scaling = difficulty_scaling
+        self.scaling
+
+# The skeleton class (child of the recipe class):
+# Each instance of the skeleton class represents a different skeleton recipe and contains information on all the
+# qualities relevant to determining its payout upon sale
+
+
+class skeleton(recipe):
+
+    def __init__(self, name, in_resources, skelestats, buyers=[]):
+        """
+
+        :param name: (string) the name of the skeleton recipe
+        :param in_resources: (dict) dictionary of the form {'itemname': amount} detailing all the resources needed to
+                                    create the skeleton
+        :param skelestats: (dict) dictionary detailing all the skeleton's qualities, to be used in determining payout
+                                  and sale difficulty
+        :param buyers: (list) list of potential buyers for the skeleton (to be set as additional parameters upon initialization
+        """
+        super().__init__(name, in_resources)
+        self.qualities = skelestats
+        self.buyers = buyers
+
+    def sell(self, buyer, stats):
+
+        title = 'Sell ' + self.name + ' to ' + buyer.name
+        instance = recipe(title, [], buyer.payout.values())
+        temp_qualities = buyer.process(stats, self.qualities)
+        instance.add_resource(buyer.payout['primary'], self.qualities['Value']*buyer.factor + buyer.bonus)
+        instance.add_resource(buyer.payout['secondary'], buyer.scaling(self.qualities))
+        instance.sell_penalty(buyer.difficulty_scaling, stats['Shadowy'], buyer.menace,
+                              temp_qualities['Implausility'], temp_qualities['probability'])
+
+        return instance
+
+
+
+
 
 ## The Recipe List
 
